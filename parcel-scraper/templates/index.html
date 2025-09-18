@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parcel Scraper</title>
+    <style>
+        body { font-family: Helvetica, sans-serif; color: black; background-color: white; margin: 0; padding: 20px; max-width: 600px; margin: auto; min-height: 100vh; display: flex; flex-direction: column; }
+        h1 { color: black; text-align: center; font-size: 24px; }
+        button, input[type="submit"] { background-color: #1F4EF5; color: white; border: none; padding: 12px 20px; cursor: pointer; font-size: 16px; border-radius: 8px; transition: background-color 0.3s; }
+        button:hover, input[type="submit"]:hover { background-color: #1A3FD0; }
+        .quote-form { text-align: center; margin-top: 20px; }
+        .quote-form label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .quote-form input[type="url"], .quote-form input[type="text"], .quote-form textarea { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; width: 80%; max-width: 400px; margin-bottom: 10px; text-align: center; }
+        .quote-form textarea { height: 80px; resize: vertical; }
+        .note { font-size: 12px; color: gray; text-align: center; margin: 10px 0; }
+        #logo { text-align: center; margin: 20px 0; }
+        #logo img { max-width: 200px; }
+        #progress-container { margin: 20px auto; width: 80%; max-width: 400px; display: none; }
+        #progress-bar { width: 0%; height: 20px; background-color: #1F4EF5; border-radius: 4px; transition: width 0.3s; }
+        #progress-text { text-align: center; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div id="logo">
+        <img src="https://i.ibb.co/272nKvr0/Black-Font-No-BG.png" alt="Logo">
+    </div>
+    <h1>Parcel Scraper</h1>
+    <form id="scrape-form" class="quote-form">
+        <label for="parent-url">Parent Parcel URL:</label>
+        <input type="url" id="parent-url" required placeholder="e.g., https://maps.clarkcountynv.gov/...">
+        <label for="exclude-parcels">Exclude Parcels (comma-separated, optional):</label>
+        <textarea id="exclude-parcels" placeholder="e.g., 176-05-101-016,176-05-101-017"></textarea>
+        <label for="filename">Export Filename (.csv):</label>
+        <input type="text" id="filename" required placeholder="(Year of Development and Development Name)">
+        <input type="submit" value="Scrape & Download">
+    </form>
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+        <div id="progress-text">0%</div>
+    </div>
+    <p class="note">Skips excluded parcels for efficiency.</p>
+    <script>
+        document.getElementById('scrape-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('parent_url', document.getElementById('parent-url').value);
+            formData.append('exclude_parcels', document.getElementById('exclude-parcels').value);
+            let filename = document.getElementById('filename').value;
+            if (!filename.endsWith('.csv')) filename += '.csv';
+            formData.append('filename', filename);
+
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+
+            const source = new EventSource('/scrape?' + new URLSearchParams(formData));
+            source.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.status === 'download') {
+                    const downloadUrl = `/download/${data.filename}?data=${encodeURIComponent(JSON.stringify(data.data))}`;
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = data.filename;
+                    a.click();
+                    source.close();
+                    progressContainer.style.display = 'none';
+                } else {
+                    const progress = (data.progress / data.total * 100).toFixed(0);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}% - ${data.status}`;
+                }
+            };
+            source.onerror = function() {
+                alert('Error scraping data');
+                source.close();
+                progressContainer.style.display = 'none';
+            };
+        });
+    </script>
+</body>
+</html>
